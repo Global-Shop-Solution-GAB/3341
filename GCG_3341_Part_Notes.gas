@@ -1,0 +1,362 @@
+Program.Sub.ScreenSU.Start
+gui.SS_Form1..create
+gui.SS_Form1..caption("Part Comments")
+gui.SS_Form1..size(9885,7050)
+gui.SS_Form1..position(0,0)
+gui.SS_Form1..event(unload,ss_form1_unload)
+gui.SS_Form1..alwaysontop(False)
+gui.SS_Form1..fontname("Arial")
+gui.SS_Form1..fontsize(8)
+gui.SS_Form1..forecolor(0)
+gui.SS_Form1..fontstyle(,,,,)
+gui.SS_Form1..BackColor(-2147483633)
+gui.SS_Form1..controlbox(True)
+gui.SS_Form1..maxbutton(False)
+gui.SS_Form1..minbutton(False)
+gui.SS_Form1..mousepointer(0)
+gui.SS_Form1..moveable(True)
+gui.SS_Form1..sizeable(False)
+gui.SS_Form1..ShowInTaskBar(True)
+gui.SS_Form1..titlebar(True)
+gui.SS_Form1.lbl_txtPart.create(label,"Part",True,1800,200,1,100,135,True,0,Arial,8,-2147483633,0)
+gui.SS_Form1.txtPart.create(textbox,"",True,1800,330,0,100,335,False,0,Arial,8,16777215,1)
+gui.SS_Form1.lbl_txtRev.create(label,"Rev",True,1800,200,1,1985,135,True,0,Arial,8,-2147483633,0)
+gui.SS_Form1.txtRev.create(textbox,"",True,900,330,0,1985,335,False,0,Arial,8,16777215,1)
+gui.SS_Form1.lbl_txtLoc.create(label,"Loc",True,1800,200,1,2970,135,True,0,Arial,8,-2147483633,0)
+gui.SS_Form1.txtLoc.create(textbox,"",True,900,330,0,2970,335,False,0,Arial,8,16777215,1)
+gui.SS_Form1.lbl_mltxtComments.create(label,"Comments",True,1800,200,1,100,835,True,0,Arial,8,-2147483633,0)
+gui.SS_Form1.mltxtComments.create(textboxm)
+gui.SS_Form1.mltxtComments.text("")
+gui.SS_Form1.mltxtComments.visible(True)
+gui.SS_Form1.mltxtComments.size(9300,4860)
+gui.SS_Form1.mltxtComments.zorder(0)
+gui.SS_Form1.mltxtComments.position(100,1035)
+gui.SS_Form1.mltxtComments.enabled(True)
+gui.SS_Form1.mltxtComments.alignment(0)
+gui.SS_Form1.mltxtComments.fontname("Arial")
+gui.SS_Form1.mltxtComments.fontsize(8)
+gui.SS_Form1.mltxtComments.BackColor(-2147483643)
+gui.SS_Form1.cmdSave.create(button)
+gui.SS_Form1.cmdSave.caption("Save")
+gui.SS_Form1.cmdSave.visible(True)
+gui.SS_Form1.cmdSave.size(1000,360)
+gui.SS_Form1.cmdSave.zorder(0)
+gui.SS_Form1.cmdSave.position(100,6095)
+gui.SS_Form1.cmdSave.enabled(True)
+gui.SS_Form1.cmdSave.fontname("Arial")
+gui.SS_Form1.cmdSave.fontsize(8)
+gui.SS_Form1.cmdSave.event(click,cmdsave_click)
+gui.SS_Form1.cmdDelete.create(button)
+gui.SS_Form1.cmdDelete.caption("Delete")
+gui.SS_Form1.cmdDelete.visible(True)
+gui.SS_Form1.cmdDelete.size(1000,360)
+gui.SS_Form1.cmdDelete.zorder(0)
+gui.SS_Form1.cmdDelete.position(1185,6095)
+gui.SS_Form1.cmdDelete.enabled(True)
+gui.SS_Form1.cmdDelete.fontname("Arial")
+gui.SS_Form1.cmdDelete.fontsize(8)
+gui.SS_Form1.cmdDelete.event(click,cmddelete_click)
+
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'Quote 4393
+'Certified Metal Finishings
+'Coded by TRT
+
+'This program will be used to add comments to inventory parts
+'will store into a new table called ATG_Inv_Comments
+
+
+'screen included a multi line text box with a delete and save button to allow for notes to be entered, updated, and deleted.
+
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+
+
+'Attach this to the Script 2 Hook on Inventory.
+'change the script button text
+F.Intrinsic.Control.If(V.Caller.Hook,=,10120)
+	V.Passed.000069.Set("Notes")
+	F.Intrinsic.Control.If(V.Caller.Switches,=,"D")
+		Gui.SS_Form1.mltxtComments.Enabled(False)
+	F.Intrinsic.Control.EndIf
+	F.ODBC.Connection!conx.Close
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.Caller.Hook,=,10125)
+	F.Intrinsic.Control.CallSub(Checkexistence)
+	F.Intrinsic.Control.end
+F.Intrinsic.Control.EndIf
+
+'script 2 button clicked hook
+F.Intrinsic.Control.If(V.caller.Hook,=,10220)
+	'show screen and load comments if they exists
+	F.Intrinsic.Control.CallSub(Loadcomments)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.Caller.Hook,=,10185)
+	'post delete hook, meaning that we need to delete the part deleted from the notes table as well
+	F.Intrinsic.Control.CallSub(Deletecomments)
+F.Intrinsic.Control.EndIf
+
+	
+
+
+Program.Sub.Main.End
+
+Program.Sub.LoadComments.Start
+F.Intrinsic.Control.SetErrorHandler("LoadComments_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sPart.Declare(String)
+V.Local.sLoc.Declare(String)
+V.Local.sSQL.Declare(String)
+
+F.Intrinsic.Control.If(V.Passed.000007,=,"")
+	F.Intrinsic.UI.Msgbox("Please select a Part. ","No Part Selected")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+
+'first get the part number from the passed variables
+F.Intrinsic.String.GSSPartString(V.Passed.000007,V.Passed.000008,V.local.sPart)
+V.Local.sLoc.Set(V.Passed.000009)
+Gui.SS_Form1.txtPart.text(V.Passed.000007)
+Gui.SS_Form1.txtRev.Text(V.Passed.000008)
+Gui.SS_Form1.txtLoc.Text(V.local.sLoc)
+
+
+'query the GCG_Inv_Comment table for the comment if any exist
+F.Intrinsic.String.Concat("Select Comments From GCG_3341_Inv_Comments Where Part = '",V.Local.sPart,"' And Loc = '",V.local.sLoc,"'",V.local.sSQL)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,True)
+	'meaning that nothing exists for that record, do nothing and show the form.
+	Gui.SS_Form1..Show
+	F.ODBC.Conx!rst.Close
+F.Intrinsic.Control.Else
+	'meaning that records have been found
+	Gui.SS_Form1.mltxtComments.Text(V.ODBC.conx!rst.FieldVal!Comments)
+	Gui.SS_Form1..Show
+	F.ODBC.conx!rst.Close
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.Caller.Switches,=,"D")
+	Gui.SS_Form1.mltxtComments.Locked(True)
+	Gui.SS_Form1.cmdSave.Enabled(False)
+F.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.Control.Label("LoadComments_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3341_Part_Notes.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.LoadComments.End
+
+Program.Sub.DeleteComments.Start
+'this will be fire when an inventory part is deleted from inventory main
+
+F.Intrinsic.Control.SetErrorHandler("DeleteComments_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sPart.Declare(String)
+V.Local.sLoc.Declare(String)
+
+'only do this on the delete switch
+F.Intrinsic.Control.If(V.Caller.Switches,=,"D")
+	'part passed variable 000007
+	'rev passed 000008
+	'loc passed 000009
+	F.Intrinsic.String.GSSPartString(V.passed.000007,V.passed.000008,V.Local.sPart)
+	V.Local.sLoc.Set(V.Passed.000009)
+	'execute a delete command
+	F.Intrinsic.String.Concat("Delete From GCG_3341_Inv_Comments Where Part = '",V.Local.sPart,"' AND Loc = '",V.Local.sLoc,"'",V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Variable.SetProperty("000069","BC",V.Color.gray)
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Label("DeleteComments_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3341_Part_Notes.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+
+
+Program.Sub.DeleteComments.End
+
+program.sub.ss_form1_unload.start
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+program.sub.ss_form1_unload.end
+
+program.sub.cmdsave_click.start
+F.Intrinsic.Control.SetErrorHandler("cmdsave_click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sPart.Declare(String)
+V.Local.sRev.Declare(String)
+V.Local.sLoc.Declare(String)
+V.Local.sComments.Declare(String)
+
+
+'this will save the comments from the multi line text box into the table
+'it will either be updated information
+'or it will new info
+
+F.Intrinsic.String.GSSPartString(V.Screen.SS_Form1!txtPart.Text,V.Screen.SS_Form1!txtRev.Text,V.Local.sPart)
+V.Local.sLoc.Set(V.Screen.SS_Form1!txtLoc.Text)
+
+'query the table to see if we have an existing record and it needs to be updated
+'or if we need to add a new record for this part
+'first lets see if this is blank or not.
+V.Local.sComments.Set(V.Screen.SS_Form1!mltxtComments.Text)
+
+F.Intrinsic.Control.If(V.local.sComments.Trim,=,"")
+	F.Intrinsic.UI.Msgbox("No Notes Entered.","Not Saved")
+	F.Intrinsic.Control.ExitSub
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Concat("Select * From GCG_3341_Inv_Comments Where Part = '",V.Local.sPart,"' AND Loc = '",V.Local.sLoc,"'",V.Local.sSQL)
+	F.ODBC.Connection!conx.OpenLocalRecordsetRw("rst",V.Local.sSQL)
+	F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,True)
+		F.ODBC.conx!rst.AddNew
+		F.ODBC.conx!rst.Set!Part(V.Local.sPart.Trim)
+		F.ODBC.conx!rst.Set!Loc(V.Local.sLoc.Trim)
+	F.Intrinsic.Control.EndIf
+	F.ODBC.conx!rst.Set!Comments(V.Screen.SS_Form1!mltxtComments.Text)
+	F.ODBC.conx!rst.Update
+	F.ODBC.conx!rst.Close
+	F.Intrinsic.UI.Msgbox("Comment Saved.","Saved")
+	Gui.SS_Form1..Visible(false)
+	F.Intrinsic.Variable.SetProperty("000069","BC",V.Color.Yellow)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdsave_click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3341_Part_Notes.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+program.sub.cmdsave_click.end
+
+program.sub.cmddelete_click.start
+F.Intrinsic.Control.SetErrorHandler("DeleteComments_Err")
+F.Intrinsic.Control.ClearErrors
+'here is where we are going to remove the comments from the table.
+'this subroutine will be called either when the delete command is clicked on the
+'comments screen that this gab script has, or this will fire also
+'if the post delete, ok, hook fires from the inventory main. We should be able to grab that by then.
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+V.Local.sPart.Declare(String)
+V.Local.sLoc.Declare(String)
+V.local.sMessage.Declare(String)
+V.Local.iRet.Declare(Long)
+
+
+F.Intrinsic.String.GSSPartString(V.Screen.SS_Form1!txtPart.Text,V.Screen.SS_Form1!txtRev.Text,V.Local.sPart)
+V.Local.sLoc.Set(V.Screen.SS_Form1!txtLoc.Text)
+F.Intrinsic.String.concat("Are you sure you want to delete all comments for Part : ",V.Local.sPart.Trim,"?",V.Local.smessage)
+F.Intrinsic.UI.Msgbox(V.Local.sMessage,"Confirm",4,V.Local.iRet)
+
+F.Intrinsic.Control.If(V.Local.iRet,=,6)
+	'execute a delete command
+	F.Intrinsic.String.Concat("Delete From GCG_3341_Inv_Comments Where Part = '",V.Local.sPart.Trim,"' AND Loc = '",V.Local.sLoc.Trim,"'",V.Local.sSQL)
+	F.ODBC.Connection!conx.Execute(V.Local.sSQL)
+	F.Intrinsic.UI.Msgbox("Part Comments Deleted.","Delete Successfull")
+	Gui.SS_Form1..Visible(False)
+	F.Intrinsic.Variable.SetProperty("000069","BC",V.Color.Gray)
+F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.End
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("DeleteComments_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3341_Part_Notes.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+
+program.sub.cmddelete_click.end
+
+Program.Sub.CheckExistence.Start
+F.Intrinsic.Control.SetErrorHandler("CheckExistence_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'check in the table to see if
+'part notes are existing
+'if they are existing change the border color of the script 2 button
+'to let the user know that they have notes present for this part
+
+V.Local.sPart.Declare(String)
+V.Local.sLoc.Declare(String)
+V.Local.sSQL.Declare(String)
+
+
+F.Intrinsic.String.GSSPartString(V.Passed.000007,V.Passed.000008,V.Local.sPart)
+V.Local.sLoc.Set(V.Passed.000009)
+
+F.Intrinsic.String.Concat("Select * From GCG_3341_Inv_Comments Where Part = '",V.Local.sPart,"' AND Loc = '",V.Local.sLoc,"'",V.Local.sSQL)
+F.ODBC.connection!conx.OpenLocalRecordsetRO("RST",V.Local.sSQL)
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,True)
+	F.Intrinsic.Variable.SetProperty("000069","BC",V.Color.Gray)
+F.Intrinsic.Control.Else
+	F.Intrinsic.Variable.SetProperty("000069","BC",V.Color.Yellow)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CheckExistence_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3341_Part_Notes.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Ss_form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.CheckExistence.End
+
+Program.Sub.Comments.Start
+${$0$}$ATG_Inv_Comments.$}$SUPERVSR$}$2/16/2013
+Program.Sub.Comments.End
+Program.Sub.ScreenSS.Start
+SS_Form1{{CAPTION::
+SS_Form1.CTRL{{NAME::txtPart\\TYPE::2\\CAPTION::Part\\GROUP::2\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::txtRev\\TYPE::2\\CAPTION::Rev\\GROUP::2\\BROWSER::0\\SIZE::0.5
+SS_Form1.CTRL{{NAME::txtLoc\\TYPE::2\\CAPTION::Loc\\GROUP::2\\BROWSER::0\\SIZE::0.5
+SS_Form1.CTRL{{NAME::mltxtComments\\TYPE::8\\CAPTION::Comments\\GROUP::-1\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::cmdSave\\TYPE::5\\CAPTION::Save\\GROUP::1\\BROWSER::0\\SIZE::1
+SS_Form1.CTRL{{NAME::cmdDelete\\TYPE::5\\CAPTION::Delete\\GROUP::1\\BROWSER::0\\SIZE::1
+
+Program.Sub.ScreenSS.End
+
